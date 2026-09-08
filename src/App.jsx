@@ -20,11 +20,11 @@ export default function App() {
 
   const [saved, setSaved] = useState(() => {
     const stored = localStorage.getItem("engineering-pulse-saved");
+
     return stored ? JSON.parse(stored) : [];
   });
 
-  // Get real news from the Netlify function
-  const refreshNews = async () => {
+  async function refreshNews() {
     try {
       setLoading(true);
       setError("");
@@ -37,22 +37,24 @@ export default function App() {
 
       const news = await response.json();
 
+      if (!Array.isArray(news)) {
+        throw new Error("Invalid news data");
+      }
+
       setArticles(news);
       setLastUpdated(new Date());
     } catch (err) {
-      console.error(err);
-      setError("Could not load the latest news.");
+      console.error("News loading error:", err);
+      setError("Could not load the latest engineering news.");
     } finally {
       setLoading(false);
     }
-  };
+  }
 
-  // Load news when the website opens
   useEffect(() => {
     refreshNews();
   }, []);
 
-  // Automatically check for new articles every 10 minutes
   useEffect(() => {
     const interval = setInterval(() => {
       refreshNews();
@@ -61,7 +63,6 @@ export default function App() {
     return () => clearInterval(interval);
   }, []);
 
-  // Save bookmarks
   useEffect(() => {
     localStorage.setItem(
       "engineering-pulse-saved",
@@ -69,41 +70,50 @@ export default function App() {
     );
   }, [saved]);
 
-  const toggleSave = (id) => {
-    setSaved((current) =>
-      current.includes(id)
-        ? current.filter((item) => item !== id)
-        : [...current, id]
-    );
-  };
+  function toggleSave(id) {
+    setSaved((current) => {
+      if (current.includes(id)) {
+        return current.filter((item) => item !== id);
+      }
+
+      return [...current, id];
+    });
+  }
 
   const filteredArticles = useMemo(() => {
     let result = [...articles];
 
     if (selectedCategory !== "All") {
-      result = result.filter(
-        (article) => article.category === selectedCategory
-      );
+      result = result.filter((article) => {
+        return article.category === selectedCategory;
+      });
     }
 
     if (search.trim()) {
       const query = search.toLowerCase();
 
-      result = result.filter((article) =>
-        `${article.title} ${article.summary} ${article.category}`
+      result = result.filter((article) => {
+        const searchableText =
+          String(article.title || "") +
+          " " +
+          String(article.summary || "") +
+          " " +
+          String(article.category || "");
+
+        return searchableText
           .toLowerCase()
-          .includes(query)
-      );
+          .includes(query);
+      });
     }
 
     if (sort === "important") {
-      result.sort(
-        (a, b) => (b.importance || 0) - (a.importance || 0)
-      );
+      result.sort((a, b) => {
+        return (b.importance || 0) - (a.importance || 0);
+      });
     } else {
-      result.sort(
-        (a, b) => b.timestamp - a.timestamp
-      );
+      result.sort((a, b) => {
+        return (b.timestamp || 0) - (a.timestamp || 0);
+      });
     }
 
     return result;
@@ -111,7 +121,6 @@ export default function App() {
 
   return (
     <div className="app">
-
       <Header
         search={search}
         setSearch={setSearch}
@@ -119,9 +128,7 @@ export default function App() {
       />
 
       <main className="container">
-
         <section className="hero">
-
           <div>
             <p className="eyebrow">
               WORLDWIDE ENGINEERING
@@ -146,13 +153,12 @@ export default function App() {
               size={17}
               className={loading ? "spinning" : ""}
             />
+
             {loading ? "Loading..." : "Refresh"}
           </button>
-
         </section>
 
         <div className="update-bar">
-
           <span className="live-dot" />
 
           <span>Live</span>
@@ -168,7 +174,6 @@ export default function App() {
           <span className="next-update">
             Automatically checks for new articles every 10 minutes
           </span>
-
         </div>
 
         {error && (
@@ -184,7 +189,6 @@ export default function App() {
         />
 
         <div className="news-heading">
-
           <div>
             <h3>
               {selectedCategory === "All"
@@ -195,7 +199,7 @@ export default function App() {
             <span>
               {loading
                 ? "Loading stories..."
-                : `${filteredArticles.length} stories`}
+                : filteredArticles.length + " stories"}
             </span>
           </div>
 
@@ -203,21 +207,20 @@ export default function App() {
             sort={sort}
             setSort={setSort}
           />
-
         </div>
 
         <section className="news-grid">
-
           {loading && articles.length === 0 ? (
             <div className="empty">
-              <h3>Loading engineering news...</h3>
+              <h3>
+                Loading engineering news...
+              </h3>
+
               <p>
                 Getting the latest articles from ScienceDaily.
               </p>
             </div>
-
           ) : filteredArticles.length > 0 ? (
-
             filteredArticles.map((article) => (
               <NewsCard
                 key={article.id}
@@ -226,20 +229,18 @@ export default function App() {
                 onSave={toggleSave}
               />
             ))
-
           ) : (
-
             <div className="empty">
-              <h3>No articles found</h3>
+              <h3>
+                No articles found
+              </h3>
+
               <p>
                 Try a different search or category.
               </p>
             </div>
-
           )}
-
         </section>
-
       </main>
 
       <footer>
@@ -248,7 +249,6 @@ export default function App() {
           students and enthusiasts
         </p>
       </footer>
-
     </div>
   );
 }
