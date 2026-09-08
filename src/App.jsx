@@ -1,4 +1,3 @@
-```jsx
 import { useEffect, useMemo, useState } from "react";
 import { RefreshCw } from "lucide-react";
 
@@ -252,4 +251,3 @@ export default function App() {
     </div>
   );
 }
-```
