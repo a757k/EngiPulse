@@ -1,5 +1,5 @@
 const RSS_URL =
-  "https://www.sciencedaily.com/rss/matter_energy/engineering_construction.xml";
+  "https://www.sciencedaily.com/rss/top/technology.xml";
 
 function cleanText(text = "") {
   return text
@@ -36,7 +36,12 @@ function calculateImportance(title, summary) {
     "renewable",
     "energy",
     "infrastructure",
-    "technology"
+    "technology",
+    "robot",
+    "engineering",
+    "battery",
+    "solar",
+    "materials"
   ];
 
   importantWords.forEach((word) => {
@@ -72,7 +77,8 @@ function detectCategory(title, summary) {
   if (
     text.includes("artificial intelligence") ||
     text.includes("machine learning") ||
-    text.includes(" ai ")
+    text.includes(" ai ") ||
+    text.startsWith("ai ")
   ) {
     return "AI";
   }
@@ -147,6 +153,54 @@ function createImpact(category) {
   return impacts[category] || impacts.Civil;
 }
 
+function isEngineeringArticle(title, summary) {
+  const text = `${title} ${summary}`.toLowerCase();
+
+  const engineeringKeywords = [
+    "engineering",
+    "engineer",
+    "robot",
+    "robotics",
+    "automation",
+    "manufacturing",
+    "mechanical",
+    "electrical",
+    "electronics",
+    "semiconductor",
+    "battery",
+    "solar",
+    "renewable",
+    "energy",
+    "materials",
+    "material",
+    "construction",
+    "infrastructure",
+    "vehicle",
+    "transportation",
+    "aerospace",
+    "technology",
+    "artificial intelligence",
+    "machine learning",
+    "computer",
+    "chip",
+    "circuit",
+    "3-d printing",
+    "3d printing",
+    "printing",
+    "concrete",
+    "metal",
+    "alloy",
+    "sustainable",
+    "climate technology",
+    "power",
+    "electricity"
+  ];
+
+  return engineeringKeywords.some((keyword) =>
+    text.includes(keyword)
+  );
+}
+
 export default async function handler() {
   try {
     const response = await fetch(RSS_URL, {
@@ -179,6 +233,10 @@ export default async function handler() {
         const pubDate = getTag(item, "pubDate");
 
         if (!title || !url) {
+          return null;
+        }
+
+        if (!isEngineeringArticle(title, summary)) {
           return null;
         }
 
