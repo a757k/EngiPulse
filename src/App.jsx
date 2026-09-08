@@ -1,3 +1,4 @@
+```jsx
 import { useEffect, useMemo, useState } from "react";
 import { RefreshCw } from "lucide-react";
 
@@ -6,31 +7,52 @@ import CategoryBar from "./components/CategoryBar";
 import SortControl from "./components/SortControl";
 import NewsCard from "./components/NewsCard";
 
-import { articles, categories } from "./data";
+import { categories } from "./data";
 
 export default function App() {
-  const [selectedCategory, setSelectedCategory] =
-    useState("All");
-
-  const [sort, setSort] = useState("important");
-
+  const [articles, setArticles] = useState([]);
+  const [selectedCategory, setSelectedCategory] = useState("All");
+  const [sort, setSort] = useState("latest");
   const [search, setSearch] = useState("");
-
-  const [lastUpdated, setLastUpdated] =
-    useState(new Date());
+  const [lastUpdated, setLastUpdated] = useState(new Date());
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState("");
 
   const [saved, setSaved] = useState(() => {
-    const stored = localStorage.getItem(
-      "engineering-pulse-saved"
-    );
-
+    const stored = localStorage.getItem("engineering-pulse-saved");
     return stored ? JSON.parse(stored) : [];
   });
 
-  const refreshNews = () => {
-    setLastUpdated(new Date());
+  // Get real news from the Netlify function
+  const refreshNews = async () => {
+    try {
+      setLoading(true);
+      setError("");
+
+      const response = await fetch("/api/news");
+
+      if (!response.ok) {
+        throw new Error("Failed to load news");
+      }
+
+      const news = await response.json();
+
+      setArticles(news);
+      setLastUpdated(new Date());
+    } catch (err) {
+      console.error(err);
+      setError("Could not load the latest news.");
+    } finally {
+      setLoading(false);
+    }
   };
 
+  // Load news when the website opens
+  useEffect(() => {
+    refreshNews();
+  }, []);
+
+  // Automatically check for new articles every 10 minutes
   useEffect(() => {
     const interval = setInterval(() => {
       refreshNews();
@@ -39,6 +61,7 @@ export default function App() {
     return () => clearInterval(interval);
   }, []);
 
+  // Save bookmarks
   useEffect(() => {
     localStorage.setItem(
       "engineering-pulse-saved",
@@ -59,8 +82,7 @@ export default function App() {
 
     if (selectedCategory !== "All") {
       result = result.filter(
-        (article) =>
-          article.category === selectedCategory
+        (article) => article.category === selectedCategory
       );
     }
 
@@ -76,7 +98,7 @@ export default function App() {
 
     if (sort === "important") {
       result.sort(
-        (a, b) => b.importance - a.importance
+        (a, b) => (b.importance || 0) - (a.importance || 0)
       );
     } else {
       result.sort(
@@ -85,7 +107,7 @@ export default function App() {
     }
 
     return result;
-  }, [selectedCategory, search, sort]);
+  }, [articles, selectedCategory, search, sort]);
 
   return (
     <div className="app">
@@ -110,24 +132,30 @@ export default function App() {
             </h2>
 
             <p>
-              Stay up to date with the developments
-              shaping engineering around the world.
+              Stay up to date with the latest engineering
+              developments from around the world.
             </p>
           </div>
 
           <button
             className="refresh-button"
             onClick={refreshNews}
+            disabled={loading}
           >
-            <RefreshCw size={17} />
-            Refresh
+            <RefreshCw
+              size={17}
+              className={loading ? "spinning" : ""}
+            />
+            {loading ? "Loading..." : "Refresh"}
           </button>
 
         </section>
 
         <div className="update-bar">
+
           <span className="live-dot" />
-          Live
+
+          <span>Live</span>
 
           <span>
             Updated{" "}
@@ -138,9 +166,16 @@ export default function App() {
           </span>
 
           <span className="next-update">
-            Automatically refreshes every 10 minutes
+            Automatically checks for new articles every 10 minutes
           </span>
+
         </div>
+
+        {error && (
+          <div className="error-message">
+            {error}
+          </div>
+        )}
 
         <CategoryBar
           categories={categories}
@@ -158,7 +193,9 @@ export default function App() {
             </h3>
 
             <span>
-              {filteredArticles.length} stories today
+              {loading
+                ? "Loading stories..."
+                : `${filteredArticles.length} stories`}
             </span>
           </div>
 
@@ -171,7 +208,16 @@ export default function App() {
 
         <section className="news-grid">
 
-          {filteredArticles.length > 0 ? (
+          {loading && articles.length === 0 ? (
+            <div className="empty">
+              <h3>Loading engineering news...</h3>
+              <p>
+                Getting the latest articles from ScienceDaily.
+              </p>
+            </div>
+
+          ) : filteredArticles.length > 0 ? (
+
             filteredArticles.map((article) => (
               <NewsCard
                 key={article.id}
@@ -180,13 +226,16 @@ export default function App() {
                 onSave={toggleSave}
               />
             ))
+
           ) : (
+
             <div className="empty">
               <h3>No articles found</h3>
               <p>
                 Try a different search or category.
               </p>
             </div>
+
           )}
 
         </section>
@@ -203,3 +252,4 @@ export default function App() {
     </div>
   );
 }
+```
