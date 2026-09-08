@@ -1,4 +1,3 @@
-```js
 const RSS_URL =
   "https://www.sciencedaily.com/rss/matter_energy/engineering_construction.xml";
 
@@ -25,20 +24,19 @@ function calculateImportance(title, summary) {
 
   const importantWords = [
     "breakthrough",
-    "new technology",
     "major",
     "record",
     "world's first",
     "first",
     "revolutionary",
     "discovery",
-    "develop",
     "developed",
     "innovation",
     "efficient",
     "renewable",
     "energy",
-    "infrastructure"
+    "infrastructure",
+    "technology"
   ];
 
   importantWords.forEach((word) => {
@@ -65,15 +63,16 @@ function detectCategory(title, summary) {
     text.includes("battery") ||
     text.includes("renewable") ||
     text.includes("wind energy") ||
-    text.includes("energy storage")
+    text.includes("energy storage") ||
+    text.includes("power generation")
   ) {
     return "Energy";
   }
 
   if (
-    text.includes("ai ") ||
     text.includes("artificial intelligence") ||
-    text.includes("machine learning")
+    text.includes("machine learning") ||
+    text.includes(" ai ")
   ) {
     return "AI";
   }
@@ -100,7 +99,8 @@ function detectCategory(title, summary) {
     text.includes("environment") ||
     text.includes("pollution") ||
     text.includes("carbon") ||
-    text.includes("sustainable")
+    text.includes("sustainable") ||
+    text.includes("climate")
   ) {
     return "Environmental";
   }
@@ -147,13 +147,17 @@ function createImpact(category) {
   return impacts[category] || impacts.Civil;
 }
 
-export default async () => {
+export default async function handler() {
   try {
-    const response = await fetch(RSS_URL);
+    const response = await fetch(RSS_URL, {
+      headers: {
+        "User-Agent": "EngineeringPulse/1.0"
+      }
+    });
 
     if (!response.ok) {
       throw new Error(
-        `ScienceDaily returned ${response.status}`
+        `ScienceDaily returned HTTP ${response.status}`
       );
     }
 
@@ -165,39 +169,47 @@ export default async () => {
       )
     ];
 
-    const articles = matches.map((match, index) => {
-      const item = match[1];
+    const articles = matches
+      .map((match, index) => {
+        const item = match[1];
 
-      const title = getTag(item, "title");
-      const url = getTag(item, "link");
-      const summary = getTag(item, "description");
-      const pubDate = getTag(item, "pubDate");
+        const title = getTag(item, "title");
+        const url = getTag(item, "link");
+        const summary = getTag(item, "description");
+        const pubDate = getTag(item, "pubDate");
 
-      const category = detectCategory(
-        title,
-        summary
-      );
+        if (!title || !url) {
+          return null;
+        }
 
-      return {
-        id: `${Date.now()}-${index}`,
-        title,
-        url,
-        summary,
-        source: "ScienceDaily",
-        category,
-        time: pubDate
-          ? new Date(pubDate).toLocaleString()
-          : "Recently",
-        timestamp: pubDate
-          ? new Date(pubDate).getTime()
-          : Date.now(),
-        importance: calculateImportance(
+        const category = detectCategory(
           title,
           summary
-        ),
-        impact: createImpact(category)
-      };
-    });
+        );
+
+        const timestamp = pubDate
+          ? new Date(pubDate).getTime()
+          : Date.now();
+
+        return {
+          id: `${timestamp}-${index}`,
+          title,
+          url,
+          summary,
+          source: "ScienceDaily",
+          category,
+          time: pubDate
+            ? new Date(pubDate).toLocaleString()
+            : "Recently",
+          timestamp,
+          importance: calculateImportance(
+            title,
+            summary
+          ),
+          impact: createImpact(category)
+        };
+      })
+      .filter(Boolean);
 
     return new Response(
       JSON.stringify(articles),
@@ -205,17 +217,17 @@ export default async () => {
         status: 200,
         headers: {
           "Content-Type": "application/json",
-          "Cache-Control":
-            "public, max-age=300"
+          "Cache-Control": "public, max-age=300"
         }
       }
     );
   } catch (error) {
-    console.error(error);
+    console.error("News function error:", error);
 
     return new Response(
       JSON.stringify({
-        error: "Could not load engineering news."
+        error: "Could not load engineering news.",
+        details: error.message
       }),
       {
         status: 500,
@@ -225,5 +237,4 @@ export default async () => {
       }
     );
   }
-};
-```
+}
