@@ -24,8 +24,15 @@ export default function App() {
         "engineering-pulse-saved"
       );
 
-      return stored ? JSON.parse(stored) : [];
-    } catch {
+      if (!stored) {
+        return [];
+      }
+
+      const parsed = JSON.parse(stored);
+
+      return Array.isArray(parsed) ? parsed : [];
+    } catch (error) {
+      console.error("Saved articles error:", error);
       return [];
     }
   });
@@ -35,14 +42,8 @@ export default function App() {
       setLoading(true);
       setError("");
 
-      /*
-        Add a unique timestamp to every request.
-
-        This prevents the browser, CDN or another cache
-        from simply returning an older /api/news response.
-      */
       const response = await fetch(
-        `/api/news?refresh=${Date.now()}`,
+        "/api/news?refresh=" + Date.now(),
         {
           cache: "no-store",
           headers: {
@@ -52,9 +53,7 @@ export default function App() {
       );
 
       if (!response.ok) {
-        throw new Error(
-          `News API returned HTTP ${response.status}`
-        );
+        throw new Error("Failed to load news");
       }
 
       const news = await response.json();
@@ -66,11 +65,7 @@ export default function App() {
       setArticles(news);
       setLastUpdated(new Date());
     } catch (err) {
-      console.error(
-        "News loading error:",
-        err
-      );
-
+      console.error("News loading error:", err);
       setError(
         "Could not load the latest engineering news."
       );
@@ -79,16 +74,10 @@ export default function App() {
     }
   }
 
-  /*
-    Load news immediately when the website opens.
-  */
   useEffect(() => {
     refreshNews();
   }, []);
 
-  /*
-    Automatically check for new articles every 10 minutes.
-  */
   useEffect(() => {
     const interval = setInterval(() => {
       refreshNews();
@@ -97,70 +86,58 @@ export default function App() {
     return () => clearInterval(interval);
   }, []);
 
-  /*
-    Save bookmarks locally on the user's device.
-  */
   useEffect(() => {
-    localStorage.setItem(
-      "engineering-pulse-saved",
-      JSON.stringify(saved)
-    );
+    try {
+      localStorage.setItem(
+        "engineering-pulse-saved",
+        JSON.stringify(saved)
+      );
+    } catch (error) {
+      console.error(
+        "Could not save bookmarks:",
+        error
+      );
+    }
   }, [saved]);
 
   function toggleSave(id) {
     setSaved((current) => {
       if (current.includes(id)) {
-        return current.filter(
-          (item) => item !== id
-        );
+        return current.filter((item) => item !== id);
       }
 
       return [...current, id];
     });
   }
 
-  /*
-    Filtering + searching + sorting.
-  */
   const filteredArticles = useMemo(() => {
     let result = [...articles];
 
-    /*
-      Category filter
-    */
     if (selectedCategory !== "All") {
-      result = result.filter(
-        (article) =>
-          article.category === selectedCategory
-      );
-    }
-
-    /*
-      Search
-    */
-    if (search.trim()) {
-      const query = search
-        .trim()
-        .toLowerCase();
-
       result = result.filter((article) => {
-        const searchableText = [
-          article.title,
-          article.summary,
-          article.category,
-          article.source
-        ]
-          .filter(Boolean)
-          .join(" ")
-          .toLowerCase();
-
-        return searchableText.includes(query);
+        return article.category === selectedCategory;
       });
     }
 
-    /*
-      Sorting
-    */
+    if (search.trim()) {
+      const query = search.toLowerCase().trim();
+
+      result = result.filter((article) => {
+        const searchableText =
+          String(article.title || "") +
+          " " +
+          String(article.summary || "") +
+          " " +
+          String(article.category || "") +
+          " " +
+          String(article.source || "");
+
+        return searchableText
+          .toLowerCase()
+          .includes(query);
+      });
+    }
+
     if (sort === "important") {
       result.sort((a, b) => {
         return (
@@ -205,9 +182,8 @@ export default function App() {
             </h2>
 
             <p>
-              Stay up to date with the latest
-              engineering developments from
-              around the world.
+              Stay up to date with the latest engineering
+              developments from around the world.
             </p>
           </div>
 
@@ -219,9 +195,7 @@ export default function App() {
             <RefreshCw
               size={17}
               className={
-                loading
-                  ? "spinning"
-                  : ""
+                loading ? "spinning" : ""
               }
             />
 
@@ -238,18 +212,15 @@ export default function App() {
 
           <span>
             Updated{" "}
-            {lastUpdated.toLocaleTimeString(
-              [],
-              {
-                hour: "2-digit",
-                minute: "2-digit"
-              }
-            )}
+            {lastUpdated.toLocaleTimeString([], {
+              hour: "2-digit",
+              minute: "2-digit"
+            })}
           </span>
 
           <span className="next-update">
-            Automatically checks for new
-            articles every 10 minutes
+            Automatically checks for new articles every
+            10 minutes
           </span>
         </div>
 
@@ -276,7 +247,8 @@ export default function App() {
             <span>
               {loading
                 ? "Loading stories..."
-                : `${filteredArticles.length} stories`}
+                : filteredArticles.length +
+                  " stories"}
             </span>
           </div>
 
@@ -287,31 +259,26 @@ export default function App() {
         </div>
 
         <section className="news-grid">
-          {loading &&
-          articles.length === 0 ? (
+          {loading && articles.length === 0 ? (
             <div className="empty">
               <h3>
                 Loading engineering news...
               </h3>
 
               <p>
-                Getting the latest articles
-                from ScienceDaily.
+                Getting the latest articles from
+                ScienceDaily.
               </p>
             </div>
           ) : filteredArticles.length > 0 ? (
-            filteredArticles.map(
-              (article) => (
-                <NewsCard
-                  key={article.id}
-                  article={article}
-                  saved={saved.includes(
-                    article.id
-                  )}
-                  onSave={toggleSave}
-                />
-              )
-            )
+            filteredArticles.map((article) => (
+              <NewsCard
+                key={article.id}
+                article={article}
+                saved={saved.includes(article.id)}
+                onSave={toggleSave}
+              />
+            ))
           ) : (
             <div className="empty">
               <h3>
@@ -319,8 +286,7 @@ export default function App() {
               </h3>
 
               <p>
-                Try a different search or
-                category.
+                Try a different search or category.
               </p>
             </div>
           )}
@@ -329,9 +295,8 @@ export default function App() {
 
       <footer>
         <p>
-          Engineering Pulse • Built for
-          engineering students and
-          enthusiasts
+          Engineering Pulse • Built for engineering
+          students and enthusiasts
         </p>
       </footer>
     </div>
