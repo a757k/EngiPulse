@@ -9,226 +9,220 @@ import NewsCard from "./components/NewsCard";
 
 import { categories } from "./data";
 
-export default function App() {
+function App() {
   const [articles, setArticles] = useState([]);
-  const [selectedCategory, setSelectedCategory] = useState("All");
-  const [sort, setSort] = useState("latest");
   const [search, setSearch] = useState("");
-  const [lastUpdated, setLastUpdated] = useState(new Date());
+  const [selectedCategory, setSelectedCategory] = useState("All");
+  const [sort, setSort] = useState("important");
+  const [savedArticles, setSavedArticles] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState("");
+  const [lastUpdated, setLastUpdated] = useState(null);
 
-  const [saved, setSaved] = useState(() => {
+  useEffect(() => {
     try {
-      const stored = localStorage.getItem(
-        "engineering-pulse-saved"
-      );
+      const saved = localStorage.getItem("engineering-pulse-saved");
 
-      if (!stored) {
-        return [];
-      }
+      if (saved) {
+        const parsed = JSON.parse(saved);
 
-      const parsed = JSON.parse(stored);
-
-      return Array.isArray(parsed) ? parsed : [];
-    } catch (error) {
-      console.error("Saved articles error:", error);
-      return [];
-    }
-  });
-
-  async function refreshNews() {
-    try {
-      setLoading(true);
-      setError("");
-
-      const response = await fetch(
-        "/api/news?refresh=" + Date.now(),
-        {
-          cache: "no-store",
-          headers: {
-            "Cache-Control": "no-cache"
-          }
+        if (Array.isArray(parsed)) {
+          setSavedArticles(parsed);
         }
-      );
-
-      if (!response.ok) {
-        throw new Error("Failed to load news");
       }
-
-      const news = await response.json();
-
-      if (!Array.isArray(news)) {
-        throw new Error("Invalid news data");
-      }
-
-      setArticles(news);
-      setLastUpdated(new Date());
     } catch (err) {
-      console.error("News loading error:", err);
-      setError(
-        "Could not load the latest engineering news."
-      );
-    } finally {
-      setLoading(false);
+      console.error("Could not load saved articles:", err);
+      setSavedArticles([]);
     }
-  }
-
-  useEffect(() => {
-    refreshNews();
-  }, []);
-
-  useEffect(() => {
-    const interval = setInterval(() => {
-      refreshNews();
-    }, 10 * 60 * 1000);
-
-    return () => clearInterval(interval);
   }, []);
 
   useEffect(() => {
     try {
       localStorage.setItem(
         "engineering-pulse-saved",
-        JSON.stringify(saved)
+        JSON.stringify(savedArticles)
       );
-    } catch (error) {
-      console.error(
-        "Could not save bookmarks:",
-        error
-      );
+    } catch (err) {
+      console.error("Could not save articles:", err);
     }
-  }, [saved]);
+  }, [savedArticles]);
 
-  function toggleSave(id) {
-    setSaved((current) => {
-      if (current.includes(id)) {
-        return current.filter((item) => item !== id);
+  const fetchNews = async (manualRefresh = false) => {
+    try {
+      if (manualRefresh) {
+        setRefreshing(true);
+      } else {
+        setLoading(true);
       }
 
-      return [...current, id];
+      setError("");
+
+      const refreshValue =
+        Date.now().toString() +
+        "-" +
+        Math.random().toString(36).slice(2);
+
+      const response = await fetch(
+        "/api/news?refresh=" + refreshValue,
+        {
+          method: "GET",
+          cache: "no-store",
+          headers: {
+            "Cache-Control": "no-cache",
+            Pragma: "no-cache"
+          }
+        }
+      );
+
+      if (!response.ok) {
+        throw new Error(
+          "News request failed with status " + response.status
+        );
+      }
+
+      const data = await response.json();
+
+      if (!Array.isArray(data)) {
+        throw new Error("The news API returned an invalid response.");
+      }
+
+      setArticles(data);
+      setLastUpdated(new Date());
+    } catch (err) {
+      console.error("Failed to fetch news:", err);
+
+      setError(
+        "Unable to load the latest engineering news. Please try again."
+      );
+    } finally {
+      setLoading(false);
+      setRefreshing(false);
+    }
+  };
+
+  useEffect(() => {
+    fetchNews(false);
+
+    const interval = setInterval(() => {
+      fetchNews(true);
+    }, 10 * 60 * 1000);
+
+    return () => clearInterval(interval);
+  }, []);
+
+  const toggleSaved = (articleId) => {
+    setSavedArticles((current) => {
+      if (current.includes(articleId)) {
+        return current.filter((id) => id !== articleId);
+      }
+
+      return [...current, articleId];
     });
-  }
+  };
 
   const filteredArticles = useMemo(() => {
-    let result = [...articles];
+    const searchTerm = search.trim().toLowerCase();
 
-    if (selectedCategory !== "All") {
-      result = result.filter((article) => {
-        return article.category === selectedCategory;
-      });
-    }
+    let result = articles.filter((article) => {
+      const matchesCategory =
+        selectedCategory === "All" ||
+        article.category === selectedCategory;
 
-    if (search.trim()) {
-      const query = search.toLowerCase().trim();
+      if (!matchesCategory) {
+        return false;
+      }
 
-      result = result.filter((article) => {
-        const searchableText =
-          String(article.title || "") +
-          " " +
-          String(article.summary || "") +
-          " " +
-          String(article.category || "") +
-          " " +
-          String(article.source || "");
+      if (!searchTerm) {
+        return true;
+      }
 
-        return searchableText
-          .toLowerCase()
-          .includes(query);
-      });
-    }
+      const searchableText = [
+        article.title,
+        article.summary,
+        article.category,
+        article.source,
+        article.impact
+      ]
+        .filter(Boolean)
+        .join(" ")
+        .toLowerCase();
+
+      return searchableText.includes(searchTerm);
+    });
+
+    result = [...result];
 
     if (sort === "important") {
       result.sort((a, b) => {
-        return (
-          (b.importance || 0) -
-          (a.importance || 0)
-        );
+        const importanceA = Number(a.importance) || 0;
+        const importanceB = Number(b.importance) || 0;
+
+        if (importanceB !== importanceA) {
+          return importanceB - importanceA;
+        }
+
+        const dateA = new Date(a.publishedAt || a.date || 0).getTime();
+        const dateB = new Date(b.publishedAt || b.date || 0).getTime();
+
+        return dateB - dateA;
       });
     } else {
       result.sort((a, b) => {
-        return (
-          (b.timestamp || 0) -
-          (a.timestamp || 0)
-        );
+        const dateA = new Date(a.publishedAt || a.date || 0).getTime();
+        const dateB = new Date(b.publishedAt || b.date || 0).getTime();
+
+        return dateB - dateA;
       });
     }
 
     return result;
-  }, [
-    articles,
-    selectedCategory,
-    search,
-    sort
-  ]);
+  }, [articles, search, selectedCategory, sort]);
+
+  const formatLastUpdated = () => {
+    if (!lastUpdated) {
+      return "";
+    }
+
+    return lastUpdated.toLocaleTimeString([], {
+      hour: "2-digit",
+      minute: "2-digit"
+    });
+  };
 
   return (
     <div className="app">
       <Header
         search={search}
         setSearch={setSearch}
-        savedCount={saved.length}
+        savedCount={savedArticles.length}
       />
 
-      <main className="container">
-        <section className="hero">
+      <main className="main-content">
+        <div className="top-section">
           <div>
-            <p className="eyebrow">
-              WORLDWIDE ENGINEERING
-            </p>
-
-            <h2>
-              Today's engineering news
+            <h2 className="page-title">
+              Engineering News
             </h2>
 
-            <p>
-              Stay up to date with the latest engineering
-              developments from around the world.
+            <p className="page-subtitle">
+              Global engineering developments, technologies and discoveries.
             </p>
           </div>
 
           <button
             className="refresh-button"
-            onClick={refreshNews}
-            disabled={loading}
+            onClick={() => fetchNews(true)}
+            disabled={refreshing}
           >
             <RefreshCw
               size={17}
-              className={
-                loading ? "spinning" : ""
-              }
+              className={refreshing ? "spinning" : ""}
             />
 
-            {loading
-              ? "Loading..."
-              : "Refresh"}
+            {refreshing ? "Refreshing..." : "Refresh"}
           </button>
-        </section>
-
-        <div className="update-bar">
-          <span className="live-dot" />
-
-          <span>Live</span>
-
-          <span>
-            Updated{" "}
-            {lastUpdated.toLocaleTimeString([], {
-              hour: "2-digit",
-              minute: "2-digit"
-            })}
-          </span>
-
-          <span className="next-update">
-            Automatically checks for new articles every
-            10 minutes
-          </span>
         </div>
-
-        {error && (
-          <div className="error-message">
-            {error}
-          </div>
-        )}
 
         <CategoryBar
           categories={categories}
@@ -236,20 +230,13 @@ export default function App() {
           setSelected={setSelectedCategory}
         />
 
-        <div className="news-heading">
-          <div>
-            <h3>
-              {selectedCategory === "All"
-                ? "Latest stories"
-                : selectedCategory}
-            </h3>
-
-            <span>
-              {loading
-                ? "Loading stories..."
-                : filteredArticles.length +
-                  " stories"}
-            </span>
+        <div className="controls-row">
+          <div className="results-count">
+            {loading
+              ? "Loading engineering news..."
+              : filteredArticles.length +
+                " article" +
+                (filteredArticles.length === 1 ? "" : "s")}
           </div>
 
           <SortControl
@@ -258,48 +245,66 @@ export default function App() {
           />
         </div>
 
-        <section className="news-grid">
-          {loading && articles.length === 0 ? (
-            <div className="empty">
-              <h3>
-                Loading engineering news...
-              </h3>
+        {lastUpdated && !loading && (
+          <div className="updated-text">
+            Last updated at {formatLastUpdated()}
+          </div>
+        )}
 
-              <p>
-                Getting the latest articles from
-                ScienceDaily.
-              </p>
-            </div>
-          ) : filteredArticles.length > 0 ? (
-            filteredArticles.map((article) => (
+        {error && (
+          <div className="error-message">
+            <strong>News update failed.</strong>
+            <span>{error}</span>
+
+            <button
+              onClick={() => fetchNews(true)}
+              disabled={refreshing}
+            >
+              Try again
+            </button>
+          </div>
+        )}
+
+        {loading ? (
+          <div className="loading-state">
+            <RefreshCw
+              size={28}
+              className="spinning"
+            />
+
+            <p>Loading the latest engineering news...</p>
+          </div>
+        ) : filteredArticles.length === 0 ? (
+          <div className="empty-state">
+            <h3>No articles found</h3>
+
+            <p>
+              Try changing the category or search term.
+            </p>
+          </div>
+        ) : (
+          <section className="news-grid">
+            {filteredArticles.map((article, index) => (
               <NewsCard
-                key={article.id}
+                key={
+                  article.id ||
+                  article.url ||
+                  article.link ||
+                  index
+                }
                 article={article}
-                saved={saved.includes(article.id)}
-                onSave={toggleSave}
+                saved={savedArticles.includes(
+                  article.id
+                )}
+                onSave={toggleSaved}
               />
-            ))
-          ) : (
-            <div className="empty">
-              <h3>
-                No articles found
-              </h3>
-
-              <p>
-                Try a different search or category.
-              </p>
-            </div>
-          )}
-        </section>
+            ))}
+          </section>
+        )}
       </main>
-
-      <footer>
-        <p>
-          Engineering Pulse • Built for engineering
-          students and enthusiasts
-        </p>
-      </footer>
     </div>
   );
 }
+
+export default App;
 ```
