@@ -31,8 +31,8 @@ function App() {
           setSavedArticles(parsed);
         }
       }
-    } catch (err) {
-      console.error("Could not load saved articles:", err);
+    } catch (error) {
+      console.error("Error loading saved articles:", error);
       setSavedArticles([]);
     }
   }, []);
@@ -43,12 +43,12 @@ function App() {
         "engineering-pulse-saved",
         JSON.stringify(savedArticles)
       );
-    } catch (err) {
-      console.error("Could not save articles:", err);
+    } catch (error) {
+      console.error("Error saving articles:", error);
     }
   }, [savedArticles]);
 
-  const fetchNews = async (manualRefresh = false) => {
+  async function fetchNews(manualRefresh) {
     try {
       if (manualRefresh) {
         setRefreshing(true);
@@ -58,13 +58,13 @@ function App() {
 
       setError("");
 
-      const refreshValue =
+      const cacheBuster =
         Date.now().toString() +
         "-" +
-        Math.random().toString(36).slice(2);
+        Math.random().toString(36).substring(2);
 
       const response = await fetch(
-        "/api/news?refresh=" + refreshValue,
+        "/api/news?refresh=" + cacheBuster,
         {
           method: "GET",
           cache: "no-store",
@@ -77,20 +77,20 @@ function App() {
 
       if (!response.ok) {
         throw new Error(
-          "News request failed with status " + response.status
+          "News API returned status " + response.status
         );
       }
 
       const data = await response.json();
 
       if (!Array.isArray(data)) {
-        throw new Error("The news API returned an invalid response.");
+        throw new Error("News API returned invalid data.");
       }
 
       setArticles(data);
       setLastUpdated(new Date());
-    } catch (err) {
-      console.error("Failed to fetch news:", err);
+    } catch (error) {
+      console.error("News loading error:", error);
 
       setError(
         "Unable to load the latest engineering news. Please try again."
@@ -99,7 +99,7 @@ function App() {
       setLoading(false);
       setRefreshing(false);
     }
-  };
+  }
 
   useEffect(() => {
     fetchNews(false);
@@ -108,10 +108,12 @@ function App() {
       fetchNews(true);
     }, 10 * 60 * 1000);
 
-    return () => clearInterval(interval);
+    return () => {
+      clearInterval(interval);
+    };
   }, []);
 
-  const toggleSaved = (articleId) => {
+  function toggleSaved(articleId) {
     setSavedArticles((current) => {
       if (current.includes(articleId)) {
         return current.filter((id) => id !== articleId);
@@ -119,17 +121,17 @@ function App() {
 
       return [...current, articleId];
     });
-  };
+  }
 
   const filteredArticles = useMemo(() => {
     const searchTerm = search.trim().toLowerCase();
 
     let result = articles.filter((article) => {
-      const matchesCategory =
+      const categoryMatches =
         selectedCategory === "All" ||
         article.category === selectedCategory;
 
-      if (!matchesCategory) {
+      if (!categoryMatches) {
         return false;
       }
 
@@ -158,28 +160,43 @@ function App() {
         const importanceA = Number(a.importance) || 0;
         const importanceB = Number(b.importance) || 0;
 
-        if (importanceB !== importanceA) {
+        if (importanceA !== importanceB) {
           return importanceB - importanceA;
         }
 
-        const dateA = new Date(a.publishedAt || a.date || 0).getTime();
-        const dateB = new Date(b.publishedAt || b.date || 0).getTime();
+        const dateA = new Date(
+          a.publishedAt || a.date || 0
+        ).getTime();
+
+        const dateB = new Date(
+          b.publishedAt || b.date || 0
+        ).getTime();
 
         return dateB - dateA;
       });
     } else {
       result.sort((a, b) => {
-        const dateA = new Date(a.publishedAt || a.date || 0).getTime();
-        const dateB = new Date(b.publishedAt || b.date || 0).getTime();
+        const dateA = new Date(
+          a.publishedAt || a.date || 0
+        ).getTime();
+
+        const dateB = new Date(
+          b.publishedAt || b.date || 0
+        ).getTime();
 
         return dateB - dateA;
       });
     }
 
     return result;
-  }, [articles, search, selectedCategory, sort]);
+  }, [
+    articles,
+    search,
+    selectedCategory,
+    sort
+  ]);
 
-  const formatLastUpdated = () => {
+  function getLastUpdatedText() {
     if (!lastUpdated) {
       return "";
     }
@@ -188,7 +205,7 @@ function App() {
       hour: "2-digit",
       minute: "2-digit"
     });
-  };
+  }
 
   return (
     <div className="app">
@@ -247,13 +264,14 @@ function App() {
 
         {lastUpdated && !loading && (
           <div className="updated-text">
-            Last updated at {formatLastUpdated()}
+            Last updated at {getLastUpdatedText()}
           </div>
         )}
 
         {error && (
           <div className="error-message">
             <strong>News update failed.</strong>
+
             <span>{error}</span>
 
             <button
@@ -272,7 +290,9 @@ function App() {
               className="spinning"
             />
 
-            <p>Loading the latest engineering news...</p>
+            <p>
+              Loading the latest engineering news...
+            </p>
           </div>
         ) : filteredArticles.length === 0 ? (
           <div className="empty-state">
