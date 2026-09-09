@@ -1,4 +1,3 @@
-```jsx
 import { useEffect, useMemo, useState } from "react";
 import { RefreshCw } from "lucide-react";
 
@@ -6,10 +5,9 @@ import Header from "./components/Header";
 import CategoryBar from "./components/CategoryBar";
 import SortControl from "./components/SortControl";
 import NewsCard from "./components/NewsCard";
-
 import { categories } from "./data";
 
-function App() {
+export default function App() {
   const [articles, setArticles] = useState([]);
   const [search, setSearch] = useState("");
   const [selectedCategory, setSelectedCategory] = useState("All");
@@ -20,9 +18,12 @@ function App() {
   const [error, setError] = useState("");
   const [lastUpdated, setLastUpdated] = useState(null);
 
+  // Load saved articles
   useEffect(() => {
     try {
-      const saved = localStorage.getItem("engineering-pulse-saved");
+      const saved = localStorage.getItem(
+        "engineering-pulse-saved"
+      );
 
       if (saved) {
         const parsed = JSON.parse(saved);
@@ -32,11 +33,16 @@ function App() {
         }
       }
     } catch (error) {
-      console.error("Error loading saved articles:", error);
+      console.error(
+        "Error loading saved articles:",
+        error
+      );
+
       setSavedArticles([]);
     }
   }, []);
 
+  // Save articles whenever the saved list changes
   useEffect(() => {
     try {
       localStorage.setItem(
@@ -44,11 +50,15 @@ function App() {
         JSON.stringify(savedArticles)
       );
     } catch (error) {
-      console.error("Error saving articles:", error);
+      console.error(
+        "Error saving articles:",
+        error
+      );
     }
   }, [savedArticles]);
 
-  async function fetchNews(manualRefresh) {
+  // Fetch news from Netlify Function
+  async function fetchNews(manualRefresh = false) {
     try {
       if (manualRefresh) {
         setRefreshing(true);
@@ -61,10 +71,12 @@ function App() {
       const cacheBuster =
         Date.now().toString() +
         "-" +
-        Math.random().toString(36).substring(2);
+        Math.random()
+          .toString(36)
+          .substring(2);
 
       const response = await fetch(
-        "/api/news?refresh=" + cacheBuster,
+        `/api/news?refresh=${cacheBuster}`,
         {
           method: "GET",
           cache: "no-store",
@@ -77,20 +89,25 @@ function App() {
 
       if (!response.ok) {
         throw new Error(
-          "News API returned status " + response.status
+          `News API returned status ${response.status}`
         );
       }
 
       const data = await response.json();
 
       if (!Array.isArray(data)) {
-        throw new Error("News API returned invalid data.");
+        throw new Error(
+          "News API returned invalid data."
+        );
       }
 
       setArticles(data);
       setLastUpdated(new Date());
     } catch (error) {
-      console.error("News loading error:", error);
+      console.error(
+        "News loading error:",
+        error
+      );
 
       setError(
         "Unable to load the latest engineering news. Please try again."
@@ -101,6 +118,7 @@ function App() {
     }
   }
 
+  // Initial news load + automatic refresh every 10 minutes
   useEffect(() => {
     fetchNews(false);
 
@@ -113,18 +131,23 @@ function App() {
     };
   }, []);
 
+  // Save / unsave article
   function toggleSaved(articleId) {
     setSavedArticles((current) => {
       if (current.includes(articleId)) {
-        return current.filter((id) => id !== articleId);
+        return current.filter(
+          (id) => id !== articleId
+        );
       }
 
       return [...current, articleId];
     });
   }
 
+  // Filter and sort articles
   const filteredArticles = useMemo(() => {
-    const searchTerm = search.trim().toLowerCase();
+    const searchTerm =
+      search.trim().toLowerCase();
 
     let result = articles.filter((article) => {
       const categoryMatches =
@@ -150,26 +173,39 @@ function App() {
         .join(" ")
         .toLowerCase();
 
-      return searchableText.includes(searchTerm);
+      return searchableText.includes(
+        searchTerm
+      );
     });
 
     result = [...result];
 
     if (sort === "important") {
       result.sort((a, b) => {
-        const importanceA = Number(a.importance) || 0;
-        const importanceB = Number(b.importance) || 0;
+        const importanceA =
+          Number(a.importance) || 0;
 
-        if (importanceA !== importanceB) {
-          return importanceB - importanceA;
+        const importanceB =
+          Number(b.importance) || 0;
+
+        if (
+          importanceA !== importanceB
+        ) {
+          return (
+            importanceB - importanceA
+          );
         }
 
         const dateA = new Date(
-          a.publishedAt || a.date || 0
+          a.publishedAt ||
+            a.date ||
+            0
         ).getTime();
 
         const dateB = new Date(
-          b.publishedAt || b.date || 0
+          b.publishedAt ||
+            b.date ||
+            0
         ).getTime();
 
         return dateB - dateA;
@@ -177,11 +213,15 @@ function App() {
     } else {
       result.sort((a, b) => {
         const dateA = new Date(
-          a.publishedAt || a.date || 0
+          a.publishedAt ||
+            a.date ||
+            0
         ).getTime();
 
         const dateB = new Date(
-          b.publishedAt || b.date || 0
+          b.publishedAt ||
+            b.date ||
+            0
         ).getTime();
 
         return dateB - dateA;
@@ -201,10 +241,13 @@ function App() {
       return "";
     }
 
-    return lastUpdated.toLocaleTimeString([], {
-      hour: "2-digit",
-      minute: "2-digit"
-    });
+    return lastUpdated.toLocaleTimeString(
+      [],
+      {
+        hour: "2-digit",
+        minute: "2-digit"
+      }
+    );
   }
 
   return (
@@ -223,37 +266,50 @@ function App() {
             </h2>
 
             <p className="page-subtitle">
-              Global engineering developments, technologies and discoveries.
+              Global engineering developments,
+              technologies and discoveries.
             </p>
           </div>
 
           <button
             className="refresh-button"
-            onClick={() => fetchNews(true)}
+            onClick={() =>
+              fetchNews(true)
+            }
             disabled={refreshing}
           >
             <RefreshCw
               size={17}
-              className={refreshing ? "spinning" : ""}
+              className={
+                refreshing
+                  ? "spinning"
+                  : ""
+              }
             />
 
-            {refreshing ? "Refreshing..." : "Refresh"}
+            {refreshing
+              ? "Refreshing..."
+              : "Refresh"}
           </button>
         </div>
 
         <CategoryBar
           categories={categories}
           selected={selectedCategory}
-          setSelected={setSelectedCategory}
+          setSelected={
+            setSelectedCategory
+          }
         />
 
         <div className="controls-row">
           <div className="results-count">
             {loading
               ? "Loading engineering news..."
-              : filteredArticles.length +
-                " article" +
-                (filteredArticles.length === 1 ? "" : "s")}
+              : `${filteredArticles.length} article${
+                  filteredArticles.length === 1
+                    ? ""
+                    : "s"
+                }`}
           </div>
 
           <SortControl
@@ -264,18 +320,23 @@ function App() {
 
         {lastUpdated && !loading && (
           <div className="updated-text">
-            Last updated at {getLastUpdatedText()}
+            Last updated at{" "}
+            {getLastUpdatedText()}
           </div>
         )}
 
         {error && (
           <div className="error-message">
-            <strong>News update failed.</strong>
+            <strong>
+              News update failed.
+            </strong>
 
             <span>{error}</span>
 
             <button
-              onClick={() => fetchNews(true)}
+              onClick={() =>
+                fetchNews(true)
+              }
               disabled={refreshing}
             >
               Try again
@@ -291,40 +352,66 @@ function App() {
             />
 
             <p>
-              Loading the latest engineering news...
+              Loading the latest
+              engineering news...
             </p>
           </div>
-        ) : filteredArticles.length === 0 ? (
+        ) : filteredArticles.length ===
+          0 ? (
           <div className="empty-state">
-            <h3>No articles found</h3>
+            <h3>
+              No articles found
+            </h3>
 
             <p>
-              Try changing the category or search term.
+              {articles.length === 0
+                ? "The news service did not return any articles. Try refreshing."
+                : "Try changing the category or search term."}
             </p>
+
+            <button
+              className="refresh-button"
+              onClick={() =>
+                fetchNews(true)
+              }
+              disabled={refreshing}
+            >
+              <RefreshCw
+                size={17}
+                className={
+                  refreshing
+                    ? "spinning"
+                    : ""
+                }
+              />
+
+              {refreshing
+                ? "Refreshing..."
+                : "Refresh News"}
+            </button>
           </div>
         ) : (
           <section className="news-grid">
-            {filteredArticles.map((article, index) => (
-              <NewsCard
-                key={
-                  article.id ||
-                  article.url ||
-                  article.link ||
-                  index
-                }
-                article={article}
-                saved={savedArticles.includes(
-                  article.id
-                )}
-                onSave={toggleSaved}
-              />
-            ))}
+            {filteredArticles.map(
+              (article, index) => (
+                <NewsCard
+                  key={
+                    article.id ||
+                    article.url ||
+                    article.link ||
+                    index
+                  }
+                  article={article}
+                  saved={savedArticles.includes(
+                    article.id
+                  )}
+                  onSave={toggleSaved}
+                />
+              )
+            )}
           </section>
         )}
       </main>
     </div>
   );
 }
-
-export default App;
-```
