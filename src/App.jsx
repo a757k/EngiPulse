@@ -1,3 +1,4 @@
+```jsx
 import { useEffect, useMemo, useState } from "react";
 import { RefreshCw } from "lucide-react";
 
@@ -18,9 +19,15 @@ export default function App() {
   const [error, setError] = useState("");
 
   const [saved, setSaved] = useState(() => {
-    const stored = localStorage.getItem("engineering-pulse-saved");
+    try {
+      const stored = localStorage.getItem(
+        "engineering-pulse-saved"
+      );
 
-    return stored ? JSON.parse(stored) : [];
+      return stored ? JSON.parse(stored) : [];
+    } catch {
+      return [];
+    }
   });
 
   async function refreshNews() {
@@ -28,10 +35,26 @@ export default function App() {
       setLoading(true);
       setError("");
 
-      const response = await fetch("/api/news");
+      /*
+        Add a unique timestamp to every request.
+
+        This prevents the browser, CDN or another cache
+        from simply returning an older /api/news response.
+      */
+      const response = await fetch(
+        `/api/news?refresh=${Date.now()}`,
+        {
+          cache: "no-store",
+          headers: {
+            "Cache-Control": "no-cache"
+          }
+        }
+      );
 
       if (!response.ok) {
-        throw new Error("Failed to load news");
+        throw new Error(
+          `News API returned HTTP ${response.status}`
+        );
       }
 
       const news = await response.json();
@@ -43,17 +66,29 @@ export default function App() {
       setArticles(news);
       setLastUpdated(new Date());
     } catch (err) {
-      console.error("News loading error:", err);
-      setError("Could not load the latest engineering news.");
+      console.error(
+        "News loading error:",
+        err
+      );
+
+      setError(
+        "Could not load the latest engineering news."
+      );
     } finally {
       setLoading(false);
     }
   }
 
+  /*
+    Load news immediately when the website opens.
+  */
   useEffect(() => {
     refreshNews();
   }, []);
 
+  /*
+    Automatically check for new articles every 10 minutes.
+  */
   useEffect(() => {
     const interval = setInterval(() => {
       refreshNews();
@@ -62,6 +97,9 @@ export default function App() {
     return () => clearInterval(interval);
   }, []);
 
+  /*
+    Save bookmarks locally on the user's device.
+  */
   useEffect(() => {
     localStorage.setItem(
       "engineering-pulse-saved",
@@ -72,51 +110,80 @@ export default function App() {
   function toggleSave(id) {
     setSaved((current) => {
       if (current.includes(id)) {
-        return current.filter((item) => item !== id);
+        return current.filter(
+          (item) => item !== id
+        );
       }
 
       return [...current, id];
     });
   }
 
+  /*
+    Filtering + searching + sorting.
+  */
   const filteredArticles = useMemo(() => {
     let result = [...articles];
 
+    /*
+      Category filter
+    */
     if (selectedCategory !== "All") {
-      result = result.filter((article) => {
-        return article.category === selectedCategory;
-      });
+      result = result.filter(
+        (article) =>
+          article.category === selectedCategory
+      );
     }
 
+    /*
+      Search
+    */
     if (search.trim()) {
-      const query = search.toLowerCase();
+      const query = search
+        .trim()
+        .toLowerCase();
 
       result = result.filter((article) => {
-        const searchableText =
-          String(article.title || "") +
-          " " +
-          String(article.summary || "") +
-          " " +
-          String(article.category || "");
+        const searchableText = [
+          article.title,
+          article.summary,
+          article.category,
+          article.source
+        ]
+          .filter(Boolean)
+          .join(" ")
+          .toLowerCase();
 
-        return searchableText
-          .toLowerCase()
-          .includes(query);
+        return searchableText.includes(query);
       });
     }
 
+    /*
+      Sorting
+    */
     if (sort === "important") {
       result.sort((a, b) => {
-        return (b.importance || 0) - (a.importance || 0);
+        return (
+          (b.importance || 0) -
+          (a.importance || 0)
+        );
       });
     } else {
       result.sort((a, b) => {
-        return (b.timestamp || 0) - (a.timestamp || 0);
+        return (
+          (b.timestamp || 0) -
+          (a.timestamp || 0)
+        );
       });
     }
 
     return result;
-  }, [articles, selectedCategory, search, sort]);
+  }, [
+    articles,
+    selectedCategory,
+    search,
+    sort
+  ]);
 
   return (
     <div className="app">
@@ -138,8 +205,9 @@ export default function App() {
             </h2>
 
             <p>
-              Stay up to date with the latest engineering
-              developments from around the world.
+              Stay up to date with the latest
+              engineering developments from
+              around the world.
             </p>
           </div>
 
@@ -150,10 +218,16 @@ export default function App() {
           >
             <RefreshCw
               size={17}
-              className={loading ? "spinning" : ""}
+              className={
+                loading
+                  ? "spinning"
+                  : ""
+              }
             />
 
-            {loading ? "Loading..." : "Refresh"}
+            {loading
+              ? "Loading..."
+              : "Refresh"}
           </button>
         </section>
 
@@ -164,14 +238,18 @@ export default function App() {
 
           <span>
             Updated{" "}
-            {lastUpdated.toLocaleTimeString([], {
-              hour: "2-digit",
-              minute: "2-digit"
-            })}
+            {lastUpdated.toLocaleTimeString(
+              [],
+              {
+                hour: "2-digit",
+                minute: "2-digit"
+              }
+            )}
           </span>
 
           <span className="next-update">
-            Automatically checks for new articles every 10 minutes
+            Automatically checks for new
+            articles every 10 minutes
           </span>
         </div>
 
@@ -198,7 +276,7 @@ export default function App() {
             <span>
               {loading
                 ? "Loading stories..."
-                : filteredArticles.length + " stories"}
+                : `${filteredArticles.length} stories`}
             </span>
           </div>
 
@@ -209,25 +287,31 @@ export default function App() {
         </div>
 
         <section className="news-grid">
-          {loading && articles.length === 0 ? (
+          {loading &&
+          articles.length === 0 ? (
             <div className="empty">
               <h3>
                 Loading engineering news...
               </h3>
 
               <p>
-                Getting the latest articles from ScienceDaily.
+                Getting the latest articles
+                from ScienceDaily.
               </p>
             </div>
           ) : filteredArticles.length > 0 ? (
-            filteredArticles.map((article) => (
-              <NewsCard
-                key={article.id}
-                article={article}
-                saved={saved.includes(article.id)}
-                onSave={toggleSave}
-              />
-            ))
+            filteredArticles.map(
+              (article) => (
+                <NewsCard
+                  key={article.id}
+                  article={article}
+                  saved={saved.includes(
+                    article.id
+                  )}
+                  onSave={toggleSave}
+                />
+              )
+            )
           ) : (
             <div className="empty">
               <h3>
@@ -235,7 +319,8 @@ export default function App() {
               </h3>
 
               <p>
-                Try a different search or category.
+                Try a different search or
+                category.
               </p>
             </div>
           )}
@@ -244,10 +329,12 @@ export default function App() {
 
       <footer>
         <p>
-          Engineering Pulse • Built for engineering
-          students and enthusiasts
+          Engineering Pulse • Built for
+          engineering students and
+          enthusiasts
         </p>
       </footer>
     </div>
   );
 }
+```
